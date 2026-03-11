@@ -120,8 +120,13 @@ export default function App() {
   const createBusiness = async () => {
     if (!bizForm.name.trim()) return notify('İşletme adı gerekli', 'error');
     try {
-      const r = await axios.post(`${API}/businesses/`, { ...bizForm, tone: 'friendly_sales' });
-      setBusinesses(prev => [...prev, r.data]);
+    
+      setBusinesses(pr 
+const r = await axios.post(`${API}/businesses/`, {
+  ...bizForm,
+  tone: 'friendly_sales'
+});
+ev => [...prev, r.data]);
       setBizForm({ name:'', sector:'', phone:'' });
       notify('İşletme eklendi ✓');
     } catch { notify('Hata oluştu', 'error'); }
