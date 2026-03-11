@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
-const API = 'http://127.0.0.1:8001';
+const API = 'https://ai-sales-agent-production-6a6b.up.railway.app';
 
 /* ─── Google Fonts ─── */
 const fontLink = document.createElement('link');
