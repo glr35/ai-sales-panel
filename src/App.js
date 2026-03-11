@@ -65,8 +65,6 @@ const C = {
 };
 
 /* ─── Tiny helpers ─── */
-const css = (obj) => obj;
-
 const sidebarItems = [
   { id: 'dashboard', icon: '⬡', label: 'İşletmeler' },
   { id: 'products',  icon: '◈', label: 'Ürünler' },
@@ -169,11 +167,6 @@ export default function App() {
       setIsTyping(false);
     }
   };
-
-  /* ── available pages ── */
-  const availablePages = selectedBiz
-    ? sidebarItems
-    : sidebarItems.filter(i => i.id === 'dashboard');
 
   /* ── navigate + guard ── */
   const navigate = (id) => {
