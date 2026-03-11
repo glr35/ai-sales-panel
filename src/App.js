@@ -118,20 +118,22 @@ export default function App() {
   }, [chatMessages, isTyping]);
 
   const createBusiness = async () => {
-    if (!bizForm.name.trim()) return notify('İşletme adı gerekli', 'error');
-    try {
-    
-      setBusinesses(pr 
-const r = await axios.post(`${API}/businesses/`, {
-  ...bizForm,
-  tone: 'friendly_sales'
-});
-ev => [...prev, r.data]);
-      setBizForm({ name:'', sector:'', phone:'' });
-      notify('İşletme eklendi ✓');
-    } catch { notify('Hata oluştu', 'error'); }
-  };
+  if (!bizForm.name.trim()) return notify('İşletme adı gerekli', 'error');
+  try {
+    const r = await axios.post(`${API}/businesses/`, {
+      ...bizForm,
+      tone: 'friendly_sales'
+    });
 
+    setBusinesses(prev => [...prev, r.data]);
+    setBizForm({ name: '', sector: '', phone: '' });
+    notify('İşletme eklendi ✓');
+
+  } catch (e) {
+    console.error(e?.response?.data || e);
+    notify('Hata oluştu', 'error');
+  }
+};
   const createProduct = async () => {
     if (!prodForm.name.trim()) return notify('Ürün adı gerekli', 'error');
     try {
