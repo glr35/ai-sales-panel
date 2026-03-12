@@ -9,7 +9,8 @@ const getHeaders = () => ({ Authorization: `Bearer ${getToken()}` });
 
 // Notification
 function Notification({ msg, type, onClose }) {
-  useEffect(() => { if (msg) { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); } }, [msg]);
+  useEffect(() => { if (msg) { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); } // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [msg]);
   if (!msg) return null;
   const bg = type === "error" ? "#ef4444" : type === "warn" ? "#f59e0b" : "#10b981";
   return (
