@@ -1,724 +1,584 @@
-import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
+import { useState, useEffect, useRef } from "react";
+import axios from "axios";
 
-const API = 'https://ai-sales-agent-production-6a6b.up.railway.app';
+const API = "https://ai-sales-agent-production-6a6b.up.railway.app";
 
-/* ─── Google Fonts ─── */
-const fontLink = document.createElement('link');
-fontLink.rel = 'stylesheet';
-fontLink.href = 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap';
-document.head.appendChild(fontLink);
+// Token helpers
+const getToken = () => localStorage.getItem("token");
+const getHeaders = () => ({ Authorization: `Bearer ${getToken()}` });
 
-/* ─── Global Styles ─── */
-const globalStyle = document.createElement('style');
-globalStyle.textContent = `
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: 'Space Grotesk', sans-serif;
-    background: #0a0a0f;
-    color: #e8e8f0;
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
-  ::-webkit-scrollbar { width: 6px; }
-  ::-webkit-scrollbar-track { background: #12121a; }
-  ::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: #3a3a5a; }
-
-  @keyframes fadeSlideIn {
-    from { opacity: 0; transform: translateY(16px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50%       { opacity: 0.4; }
-  }
-  @keyframes shimmer {
-    0%   { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
-  }
-  @keyframes typingDot {
-    0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
-    40%            { transform: scale(1); opacity: 1; }
-  }
-  .fade-in { animation: fadeSlideIn 0.35s ease both; }
-  .dot1 { animation: typingDot 1.2s infinite 0s; }
-  .dot2 { animation: typingDot 1.2s infinite 0.2s; }
-  .dot3 { animation: typingDot 1.2s infinite 0.4s; }
-`;
-document.head.appendChild(globalStyle);
-
-/* ─── Color tokens ─── */
-const C = {
-  bg:       '#0a0a0f',
-  surface:  '#12121c',
-  surface2: '#1a1a28',
-  border:   '#252535',
-  accent:   '#6c63ff',
-  accentLt: '#8b84ff',
-  green:    '#22d3a0',
-  red:      '#ff5f6d',
-  amber:    '#f5a623',
-  text:     '#e8e8f0',
-  muted:    '#6b6b8a',
-  white:    '#ffffff',
-};
-
-/* ─── Tiny helpers ─── */
-const sidebarItems = [
-  { id: 'dashboard', icon: '⬡', label: 'İşletmeler' },
-  { id: 'products',  icon: '◈', label: 'Ürünler' },
-  { id: 'faqs',      icon: '◉', label: 'SSS' },
-  { id: 'chat',      icon: '◎', label: 'Chat Test' },
-  { id: 'history',   icon: '◷', label: 'Müşteriler' },
-];
-
-/* ═══════════════════════════════════════════════════════════
-   MAIN APP
-═══════════════════════════════════════════════════════════ */
-export default function App() {
-  const [page, setPage]                     = useState('dashboard');
-  const [businesses, setBusinesses]         = useState([]);
-  const [selectedBiz, setSelectedBiz]       = useState(null);
-  const [products, setProducts]             = useState([]);
-  const [faqs, setFaqs]                     = useState([]);
-  const [chatMessages, setChatMessages]     = useState([]);
-  const [history, setHistory]               = useState([]);
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
-  const [chatInput, setChatInput]           = useState('');
-  const [isTyping, setIsTyping]             = useState(false);
-  const [notification, setNotification]     = useState(null);
-
-  /* forms */
-  const [bizForm,  setBizForm]  = useState({ name:'', sector:'', phone:'' });
-  const [prodForm, setProdForm] = useState({ name:'', description:'', price_try:'' });
-  const [faqForm,  setFaqForm]  = useState({ question:'', answer:'' });
-
-  const chatEndRef = useRef(null);
-
-  const notify = (msg, type = 'success') => {
-    setNotification({ msg, type });
-    setTimeout(() => setNotification(null), 3000);
-  };
-
-  useEffect(() => {
-    axios.get(`${API}/businesses/`).then(r => setBusinesses(r.data)).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (selectedBiz) {
-      axios.get(`${API}/products/${selectedBiz.id}`).then(r => setProducts(r.data));
-      axios.get(`${API}/faqs/${selectedBiz.id}`).then(r => setFaqs(r.data));
-      axios.get(`${API}/chat/history/${selectedBiz.id}`).then(r => setHistory(r.data));
-    }
-  }, [selectedBiz]);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatMessages, isTyping]);
-
-  const createBusiness = async () => {
-  if (!bizForm.name.trim()) return notify('İşletme adı gerekli', 'error');
-  try {
-    const r = await axios.post(`${API}/businesses/`, {
-      ...bizForm,
-      tone: 'friendly_sales'
-    });
-
-    setBusinesses(prev => [...prev, r.data]);
-    setBizForm({ name: '', sector: '', phone: '' });
-    notify('İşletme eklendi ✓');
-
-  } catch (e) {
-    console.error(e?.response?.data || e);
-    notify('Hata oluştu', 'error');
-  }
-};
-  const createProduct = async () => {
-    if (!prodForm.name.trim()) return notify('Ürün adı gerekli', 'error');
-    try {
-      const r = await axios.post(`${API}/products/`, {
-        business_id: selectedBiz.id, ...prodForm,
-        price_try: parseInt(prodForm.price_try) || 0, is_active: true,
-      });
-      setProducts(prev => [...prev, r.data]);
-      setProdForm({ name:'', description:'', price_try:'' });
-      notify('Ürün eklendi ✓');
-    } catch { notify('Hata oluştu', 'error'); }
-  };
-
-  const createFaq = async () => {
-    if (!faqForm.question.trim()) return notify('Soru gerekli', 'error');
-    try {
-      const r = await axios.post(`${API}/faqs/`, { business_id: selectedBiz.id, ...faqForm });
-      setFaqs(prev => [...prev, r.data]);
-      setFaqForm({ question:'', answer:'' });
-      notify('SSS eklendi ✓');
-    } catch { notify('Hata oluştu', 'error'); }
-  };
-
-  const sendChat = async () => {
-    const msg = chatInput.trim();
-    if (!msg) return;
-    setChatMessages(prev => [...prev, { role:'user', text:msg, ts: Date.now() }]);
-    setChatInput('');
-    setIsTyping(true);
-    try {
-      const r = await axios.post(`${API}/chat/`, {
-        business_id: selectedBiz.id, whatsapp:'test123', message: msg,
-      });
-      setChatMessages(prev => [...prev, { role:'assistant', text:r.data.reply, ts: Date.now() }]);
-    } catch {
-      setChatMessages(prev => [...prev, { role:'assistant', text:'❌ Bağlantı hatası', ts: Date.now() }]);
-    } finally {
-      setIsTyping(false);
-    }
-  };
-
-  /* ── navigate + guard ── */
-  const navigate = (id) => {
-    if (!selectedBiz && id !== 'dashboard') return;
-    setPage(id);
-  };
-
+// Notification
+function Notification({ msg, type, onClose }) {
+  useEffect(() => { if (msg) { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); } }, [msg]);
+  if (!msg) return null;
+  const bg = type === "error" ? "#ef4444" : type === "warn" ? "#f59e0b" : "#10b981";
   return (
-    <div style={{ display:'flex', minHeight:'100vh', background: C.bg }}>
-
-      {/* ── SIDEBAR ── */}
-      <aside style={{
-        width: 220, flexShrink: 0, background: C.surface,
-        borderRight: `1px solid ${C.border}`,
-        display: 'flex', flexDirection: 'column',
-        position: 'sticky', top: 0, height: '100vh',
-      }}>
-        {/* Logo */}
-        <div style={{ padding: '28px 24px 24px', borderBottom: `1px solid ${C.border}` }}>
-          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-            <div style={{
-              width:36, height:36, borderRadius:10,
-              background: `linear-gradient(135deg, ${C.accent}, ${C.accentLt})`,
-              display:'flex', alignItems:'center', justifyContent:'center',
-              fontSize:18, fontWeight:700,
-            }}>A</div>
-            <div>
-              <div style={{ fontWeight:700, fontSize:14, color: C.white, lineHeight:1.2 }}>AI Sales</div>
-              <div style={{ fontSize:11, color: C.muted, fontFamily:'JetBrains Mono' }}>Agent TR</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Selected biz badge */}
-        {selectedBiz && (
-          <div style={{ margin:'16px 14px 0', padding:'10px 12px', background: C.surface2, borderRadius:8, border:`1px solid ${C.border}` }}>
-            <div style={{ fontSize:10, color: C.muted, marginBottom:3, textTransform:'uppercase', letterSpacing:1 }}>Aktif İşletme</div>
-            <div style={{ fontSize:13, fontWeight:600, color: C.green, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-              {selectedBiz.name}
-            </div>
-            <button
-              onClick={() => { setSelectedBiz(null); setPage('dashboard'); }}
-              style={{ marginTop:6, fontSize:10, color: C.muted, background:'none', border:'none', cursor:'pointer', padding:0 }}
-            >
-              ← değiştir
-            </button>
-          </div>
-        )}
-
-        {/* Nav */}
-        <nav style={{ padding:'16px 12px', flex:1 }}>
-          {sidebarItems.map(item => {
-            const disabled = !selectedBiz && item.id !== 'dashboard';
-            const active = page === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => navigate(item.id)}
-                disabled={disabled}
-                style={{
-                  width:'100%', display:'flex', alignItems:'center', gap:10,
-                  padding:'10px 12px', borderRadius:8, border:'none',
-                  background: active ? `${C.accent}22` : 'none',
-                  color: active ? C.accentLt : disabled ? C.border : C.muted,
-                  cursor: disabled ? 'not-allowed' : 'pointer',
-                  fontSize:14, fontWeight: active ? 600 : 400,
-                  marginBottom:2, transition:'all 0.15s',
-                  borderLeft: active ? `3px solid ${C.accent}` : '3px solid transparent',
-                  fontFamily: 'Space Grotesk',
-                  textAlign:'left',
-                }}
-              >
-                <span style={{ fontSize:16 }}>{item.icon}</span>
-                {item.label}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Footer */}
-        <div style={{ padding:'16px 20px', borderTop:`1px solid ${C.border}` }}>
-          <div style={{ fontSize:11, color: C.muted, fontFamily:'JetBrains Mono' }}>v1.0.0 · Groq AI</div>
-          <div style={{ fontSize:11, color: C.muted, marginTop:2 }}>Bitirme Projesi 2025</div>
-        </div>
-      </aside>
-
-      {/* ── MAIN CONTENT ── */}
-      <main style={{ flex:1, display:'flex', flexDirection:'column', minWidth:0 }}>
-
-        {/* Top bar */}
-        <header style={{
-          height:60, borderBottom:`1px solid ${C.border}`,
-          display:'flex', alignItems:'center', justifyContent:'space-between',
-          padding:'0 32px', background: C.surface, flexShrink:0,
-        }}>
-          <h1 style={{ fontSize:16, fontWeight:600, color: C.text }}>
-            {sidebarItems.find(i=>i.id===page)?.label}
-          </h1>
-          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-            <div style={{
-              width:8, height:8, borderRadius:'50%', background: C.green,
-              boxShadow:`0 0 8px ${C.green}`,
-              animation:'pulse 2s infinite',
-            }}/>
-            <span style={{ fontSize:12, color: C.muted }}>Backend bağlı</span>
-          </div>
-        </header>
-
-        {/* Notification */}
-        {notification && (
-          <div style={{
-            position:'fixed', top:20, right:24, zIndex:1000,
-            padding:'12px 20px', borderRadius:10,
-            background: notification.type === 'error' ? `${C.red}22` : `${C.green}22`,
-            border: `1px solid ${notification.type === 'error' ? C.red : C.green}`,
-            color: notification.type === 'error' ? C.red : C.green,
-            fontSize:13, fontWeight:500,
-            animation: 'fadeSlideIn 0.3s ease',
-            backdropFilter:'blur(10px)',
-          }}>
-            {notification.msg}
-          </div>
-        )}
-
-        {/* Page content */}
-        <div style={{ flex:1, padding:32, overflowY:'auto' }} className="fade-in" key={page}>
-
-          {/* ═══ DASHBOARD ═══ */}
-          {page === 'dashboard' && (
-            <div>
-              {/* Stats row */}
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16, marginBottom:32 }}>
-                {[
-                  { label:'Toplam İşletme', value: businesses.length, color: C.accent, icon:'⬡' },
-                  { label:'Aktif İşletme',  value: selectedBiz ? 1 : 0, color: C.green,  icon:'◈' },
-                  { label:'AI Durumu',      value:'Aktif', color: C.amber, icon:'◉' },
-                ].map((s,i) => (
-                  <div key={i} style={{
-                    background: C.surface, border:`1px solid ${C.border}`,
-                    borderRadius:12, padding:'20px 24px',
-                    borderTop:`2px solid ${s.color}`,
-                  }}>
-                    <div style={{ fontSize:22, marginBottom:8 }}>{s.icon}</div>
-                    <div style={{ fontSize:28, fontWeight:700, color: s.color }}>{s.value}</div>
-                    <div style={{ fontSize:12, color: C.muted, marginTop:4 }}>{s.label}</div>
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:24 }}>
-                {/* Add business form */}
-                <div style={{ background: C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:24 }}>
-                  <h2 style={{ fontSize:15, fontWeight:600, marginBottom:20, color: C.text }}>
-                    Yeni İşletme Ekle
-                  </h2>
-                  {[
-                    { key:'name',   ph:'İşletme adı *',  label:'Ad' },
-                    { key:'sector', ph:'Kuaför, Restoran…', label:'Sektör' },
-                    { key:'phone',  ph:'05xxxxxxxxx', label:'Telefon' },
-                  ].map(f => (
-                    <div key={f.key} style={{ marginBottom:12 }}>
-                      <label style={{ fontSize:11, color: C.muted, display:'block', marginBottom:4, textTransform:'uppercase', letterSpacing:0.8 }}>{f.label}</label>
-                      <input
-                        placeholder={f.ph}
-                        value={bizForm[f.key]}
-                        onChange={e => setBizForm(p=>({...p,[f.key]:e.target.value}))}
-                        style={inputStyle}
-                      />
-                    </div>
-                  ))}
-                  <button onClick={createBusiness} style={btnPrimary}>
-                    + İşletme Ekle
-                  </button>
-                </div>
-
-                {/* Business list */}
-                <div style={{ background: C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:24 }}>
-                  <h2 style={{ fontSize:15, fontWeight:600, marginBottom:20, color: C.text }}>
-                    İşletmeler ({businesses.length})
-                  </h2>
-                  <div style={{ maxHeight:300, overflowY:'auto' }}>
-                    {businesses.length === 0 && (
-                      <div style={{ textAlign:'center', padding:'40px 0', color: C.muted, fontSize:13 }}>
-                        Henüz işletme yok
-                      </div>
-                    )}
-                    {businesses.map(b => (
-                      <div key={b.id} style={{
-                        padding:'12px 14px', borderRadius:10, marginBottom:8,
-                        background: selectedBiz?.id === b.id ? `${C.accent}18` : C.surface2,
-                        border:`1px solid ${selectedBiz?.id === b.id ? C.accent : C.border}`,
-                        display:'flex', alignItems:'center', justifyContent:'space-between',
-                        transition:'all 0.15s',
-                      }}>
-                        <div>
-                          <div style={{ fontWeight:600, fontSize:14, color: C.text }}>{b.name}</div>
-                          <div style={{ fontSize:11, color: C.muted, marginTop:2 }}>
-                            {b.sector || '—'} · {b.phone || '—'}
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => { setSelectedBiz(b); setPage('products'); }}
-                          style={{ ...btnSmall, background: selectedBiz?.id===b.id ? C.accent : C.surface2 }}
-                        >
-                          {selectedBiz?.id===b.id ? 'Seçili' : 'Seç'}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ═══ PRODUCTS ═══ */}
-          {page === 'products' && selectedBiz && (
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1.4fr', gap:24 }}>
-              <div style={{ background: C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:24 }}>
-                <h2 style={{ fontSize:15, fontWeight:600, marginBottom:20 }}>Ürün Ekle</h2>
-                {[
-                  { key:'name',        ph:'Saç Kesimi *',    label:'Ürün Adı' },
-                  { key:'description', ph:'Kısa açıklama…',  label:'Açıklama' },
-                  { key:'price_try',   ph:'150',             label:'Fiyat (₺)' },
-                ].map(f => (
-                  <div key={f.key} style={{ marginBottom:12 }}>
-                    <label style={{ fontSize:11, color: C.muted, display:'block', marginBottom:4, textTransform:'uppercase', letterSpacing:0.8 }}>{f.label}</label>
-                    <input
-                      placeholder={f.ph}
-                      value={prodForm[f.key]}
-                      onChange={e => setProdForm(p=>({...p,[f.key]:e.target.value}))}
-                      style={inputStyle}
-                    />
-                  </div>
-                ))}
-                <button onClick={createProduct} style={btnPrimary}>+ Ürün Ekle</button>
-              </div>
-
-              <div style={{ background: C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:24 }}>
-                <h2 style={{ fontSize:15, fontWeight:600, marginBottom:20 }}>Ürün Listesi ({products.length})</h2>
-                <div style={{ maxHeight:400, overflowY:'auto' }}>
-                  {products.length === 0 && <Empty text="Henüz ürün yok" />}
-                  {products.map(p => (
-                    <div key={p.id} style={cardRow}>
-                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-                        <div>
-                          <div style={{ fontWeight:600, fontSize:14, color: C.text }}>{p.name}</div>
-                          <div style={{ fontSize:12, color: C.muted, marginTop:2 }}>{p.description}</div>
-                        </div>
-                        <div style={{
-                          background:`${C.green}18`, color: C.green,
-                          padding:'4px 10px', borderRadius:6, fontSize:13, fontWeight:600,
-                          whiteSpace:'nowrap',
-                        }}>
-                          ₺{p.price_try}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ═══ FAQS ═══ */}
-          {page === 'faqs' && selectedBiz && (
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1.4fr', gap:24 }}>
-              <div style={{ background: C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:24 }}>
-                <h2 style={{ fontSize:15, fontWeight:600, marginBottom:20 }}>SSS Ekle</h2>
-                {[
-                  { key:'question', ph:'Çalışma saatiniz nedir?', label:'Soru', rows:2 },
-                  { key:'answer',   ph:'Cevap…',                  label:'Cevap', rows:3 },
-                ].map(f => (
-                  <div key={f.key} style={{ marginBottom:12 }}>
-                    <label style={{ fontSize:11, color: C.muted, display:'block', marginBottom:4, textTransform:'uppercase', letterSpacing:0.8 }}>{f.label}</label>
-                    <textarea
-                      rows={f.rows}
-                      placeholder={f.ph}
-                      value={faqForm[f.key]}
-                      onChange={e => setFaqForm(p=>({...p,[f.key]:e.target.value}))}
-                      style={{ ...inputStyle, resize:'vertical', minHeight: f.rows*36 }}
-                    />
-                  </div>
-                ))}
-                <button onClick={createFaq} style={btnPrimary}>+ SSS Ekle</button>
-              </div>
-
-              <div style={{ background: C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:24 }}>
-                <h2 style={{ fontSize:15, fontWeight:600, marginBottom:20 }}>Sorular ({faqs.length})</h2>
-                <div style={{ maxHeight:400, overflowY:'auto' }}>
-                  {faqs.length === 0 && <Empty text="Henüz soru yok" />}
-                  {faqs.map(f => (
-                    <div key={f.id} style={{ ...cardRow, marginBottom:10 }}>
-                      <div style={{ fontSize:12, color: C.accentLt, fontWeight:600, marginBottom:4 }}>S: {f.question}</div>
-                      <div style={{ fontSize:12, color: C.muted }}>C: {f.answer}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ═══ CHAT ═══ */}
-          {page === 'chat' && selectedBiz && (
-            <div style={{ maxWidth:700, margin:'0 auto' }}>
-              <div style={{
-                background: C.surface, border:`1px solid ${C.border}`,
-                borderRadius:16, overflow:'hidden',
-              }}>
-                {/* Chat header */}
-                <div style={{
-                  padding:'16px 20px', borderBottom:`1px solid ${C.border}`,
-                  display:'flex', alignItems:'center', gap:12,
-                  background: C.surface2,
-                }}>
-                  <div style={{
-                    width:36, height:36, borderRadius:'50%',
-                    background:`linear-gradient(135deg, ${C.accent}, ${C.green})`,
-                    display:'flex', alignItems:'center', justifyContent:'center',
-                    fontSize:16,
-                  }}>🤖</div>
-                  <div>
-                    <div style={{ fontWeight:600, fontSize:14 }}>{selectedBiz.name} — AI Asistan</div>
-                    <div style={{ fontSize:11, color: C.green, display:'flex', alignItems:'center', gap:4 }}>
-                      <span style={{ width:6, height:6, background:C.green, borderRadius:'50%', display:'inline-block' }}/>
-                      Çevrimiçi · Groq AI
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setChatMessages([])}
-                    style={{ marginLeft:'auto', background:'none', border:`1px solid ${C.border}`, color:C.muted, borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:11 }}
-                  >
-                    Temizle
-                  </button>
-                </div>
-
-                {/* Messages */}
-                <div style={{ height:380, overflowY:'auto', padding:'20px 16px', display:'flex', flexDirection:'column', gap:10 }}>
-                  {chatMessages.length === 0 && (
-                    <div style={{ margin:'auto', textAlign:'center', color: C.muted }}>
-                      <div style={{ fontSize:32, marginBottom:8 }}>💬</div>
-                      <div style={{ fontSize:13 }}>AI asistanınıza bir şey sorun</div>
-                    </div>
-                  )}
-                  {chatMessages.map((m, i) => (
-                    <div key={i} style={{
-                      display:'flex',
-                      justifyContent: m.role==='user' ? 'flex-end' : 'flex-start',
-                      animation: 'fadeSlideIn 0.25s ease',
-                    }}>
-                      <div style={{
-                        maxWidth:'75%', padding:'10px 14px', borderRadius:12,
-                        background: m.role==='user'
-                          ? `linear-gradient(135deg, ${C.accent}, ${C.accentLt})`
-                          : C.surface2,
-                        color: C.text, fontSize:13, lineHeight:1.5,
-                        borderBottomRightRadius: m.role==='user' ? 2 : 12,
-                        borderBottomLeftRadius:  m.role==='assistant' ? 2 : 12,
-                        border: m.role==='assistant' ? `1px solid ${C.border}` : 'none',
-                      }}>
-                        {m.text}
-                      </div>
-                    </div>
-                  ))}
-                  {isTyping && (
-                    <div style={{ display:'flex', gap:5, padding:'10px 14px', background: C.surface2, borderRadius:12, width:64, border:`1px solid ${C.border}` }}>
-                      {[0,1,2].map(i=>(
-                        <span key={i} style={{
-                          width:7, height:7, borderRadius:'50%', background: C.muted, display:'block',
-                          animation:`typingDot 1.2s infinite ${i*0.2}s`,
-                        }}/>
-                      ))}
-                    </div>
-                  )}
-                  <div ref={chatEndRef}/>
-                </div>
-
-                {/* Input */}
-                <div style={{
-                  padding:'12px 16px', borderTop:`1px solid ${C.border}`,
-                  display:'flex', gap:10, background: C.surface2,
-                }}>
-                  <input
-                    placeholder="Müşteri olarak mesaj yazın…"
-                    value={chatInput}
-                    onChange={e => setChatInput(e.target.value)}
-                    onKeyDown={e => e.key==='Enter' && sendChat()}
-                    style={{ ...inputStyle, flex:1, margin:0 }}
-                  />
-                  <button onClick={sendChat} style={{
-                    padding:'10px 20px', borderRadius:8,
-                    background:`linear-gradient(135deg, ${C.accent}, ${C.accentLt})`,
-                    color:'#fff', border:'none', cursor:'pointer',
-                    fontWeight:600, fontSize:13, fontFamily:'Space Grotesk',
-                    transition:'opacity 0.15s', flexShrink:0,
-                  }}>
-                    Gönder ↑
-                  </button>
-                </div>
-              </div>
-
-              {/* Quick prompts */}
-              <div style={{ marginTop:16 }}>
-                <div style={{ fontSize:11, color:C.muted, marginBottom:8, textTransform:'uppercase', letterSpacing:1 }}>Hızlı Test</div>
-                <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
-                  {['Merhaba, ne satıyorsunuz?','Fiyatlarınız nedir?','Çalışma saatleriniz?','Nasıl randevu alabilirim?'].map(q=>(
-                    <button key={q} onClick={()=>{setChatInput(q);}} style={{
-                      padding:'6px 12px', borderRadius:20, border:`1px solid ${C.border}`,
-                      background: C.surface, color: C.muted, fontSize:12, cursor:'pointer',
-                      fontFamily:'Space Grotesk', transition:'all 0.15s',
-                    }}>
-                      {q}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ═══ HISTORY ═══ */}
-          {page === 'history' && selectedBiz && (
-            <div style={{ display:'grid', gridTemplateColumns:'280px 1fr', gap:24, height:'calc(100vh - 124px)' }}>
-              {/* Customer list */}
-              <div style={{ background: C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:20, overflowY:'auto' }}>
-                <h2 style={{ fontSize:15, fontWeight:600, marginBottom:16 }}>
-                  Müşteriler ({history.length})
-                </h2>
-                {history.length === 0 && <Empty text="Henüz müşteri yok" />}
-                {history.map((c, i) => (
-                  <div
-                    key={i}
-                    onClick={() => setSelectedCustomer(c)}
-                    style={{
-                      padding:'12px 14px', borderRadius:10, marginBottom:8, cursor:'pointer',
-                      background: selectedCustomer?.customer_id === c.customer_id ? `${C.accent}22` : C.surface2,
-                      border:`1px solid ${selectedCustomer?.customer_id === c.customer_id ? C.accent : C.border}`,
-                      transition:'all 0.15s',
-                    }}
-                  >
-                    <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                      <div style={{
-                        width:32, height:32, borderRadius:'50%',
-                        background:`linear-gradient(135deg, ${C.accent}, ${C.green})`,
-                        display:'flex', alignItems:'center', justifyContent:'center',
-                        fontSize:13, fontWeight:700, flexShrink:0,
-                      }}>
-                        {c.whatsapp.slice(-2)}
-                      </div>
-                      <div>
-                        <div style={{ fontSize:13, fontWeight:600, fontFamily:'JetBrains Mono' }}>{c.whatsapp}</div>
-                        <div style={{ fontSize:11, color: C.muted, marginTop:1 }}>
-                          {c.messages.length} mesaj
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Conversation view */}
-              <div style={{ background: C.surface, border:`1px solid ${C.border}`, borderRadius:14, overflow:'hidden', display:'flex', flexDirection:'column' }}>
-                {!selectedCustomer ? (
-                  <div style={{ margin:'auto', textAlign:'center', color: C.muted }}>
-                    <div style={{ fontSize:32, marginBottom:8 }}>👈</div>
-                    <div style={{ fontSize:13 }}>Sol taraftan bir müşteri seçin</div>
-                  </div>
-                ) : (
-                  <>
-                    <div style={{ padding:'16px 20px', borderBottom:`1px solid ${C.border}`, background: C.surface2, display:'flex', alignItems:'center', gap:12 }}>
-                      <div style={{
-                        width:36, height:36, borderRadius:'50%',
-                        background:`linear-gradient(135deg, ${C.accent}, ${C.green})`,
-                        display:'flex', alignItems:'center', justifyContent:'center',
-                        fontSize:14, fontWeight:700,
-                      }}>
-                        {selectedCustomer.whatsapp.slice(-2)}
-                      </div>
-                      <div>
-                        <div style={{ fontWeight:600, fontSize:14, fontFamily:'JetBrains Mono' }}>{selectedCustomer.whatsapp}</div>
-                        <div style={{ fontSize:11, color: C.muted }}>{selectedCustomer.messages.length} mesaj · {selectedBiz.name}</div>
-                      </div>
-                    </div>
-                    <div style={{ flex:1, overflowY:'auto', padding:'20px 16px', display:'flex', flexDirection:'column', gap:10 }}>
-                      {selectedCustomer.messages.map((m, i) => (
-                        <div key={i} style={{ display:'flex', justifyContent: m.role==='user' ? 'flex-end' : 'flex-start' }}>
-                          <div style={{
-                            maxWidth:'70%', padding:'10px 14px', borderRadius:12,
-                            background: m.role==='user' ? `linear-gradient(135deg, ${C.accent}, ${C.accentLt})` : C.surface2,
-                            color: C.text, fontSize:13, lineHeight:1.5,
-                            border: m.role==='assistant' ? `1px solid ${C.border}` : 'none',
-                            borderBottomRightRadius: m.role==='user' ? 2 : 12,
-                            borderBottomLeftRadius: m.role==='assistant' ? 2 : 12,
-                          }}>
-                            {m.text}
-                            <div style={{ fontSize:10, color: m.role==='user' ? 'rgba(255,255,255,0.5)' : C.muted, marginTop:4 }}>
-                              {new Date(m.created_at).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' })}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-
-        </div>
-      </main>
+    <div style={{ position: "fixed", top: 20, right: 20, background: bg, color: "#fff", padding: "12px 20px", borderRadius: 10, zIndex: 9999, fontFamily: "'DM Sans', sans-serif", fontSize: 14, boxShadow: "0 4px 20px rgba(0,0,0,0.3)" }}>
+      {msg}
     </div>
   );
 }
 
-/* ── Shared style objects ── */
-const inputStyle = {
-  width:'100%', padding:'10px 12px',
-  background:'#0d0d16', border:`1px solid #252535`,
-  borderRadius:8, color:'#e8e8f0', fontSize:13,
-  fontFamily:'Space Grotesk', outline:'none',
-  transition:'border-color 0.15s',
-};
+// Auth Pages
+function AuthPage({ onLogin }) {
+  const [mode, setMode] = useState("login"); // login | register
+  const [form, setForm] = useState({ email: "", password: "", business_name: "", sector: "", phone: "" });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-const btnPrimary = {
-  width:'100%', padding:'11px 0', borderRadius:8,
-  background:'linear-gradient(135deg, #6c63ff, #8b84ff)',
-  color:'#fff', border:'none', cursor:'pointer',
-  fontWeight:600, fontSize:13, fontFamily:'Space Grotesk',
-  marginTop:4,
-};
+  const update = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
-const btnSmall = {
-  padding:'5px 12px', borderRadius:6,
-  border:'none', cursor:'pointer',
-  color:'#fff', fontSize:11, fontWeight:600,
-  fontFamily:'Space Grotesk',
-};
+  const submit = async () => {
+    setError(""); setLoading(true);
+    try {
+      if (mode === "login") {
+        const r = await axios.post(`${API}/auth/login`, { email: form.email, password: form.password });
+        localStorage.setItem("token", r.data.token);
+        localStorage.setItem("business_id", r.data.business_id);
+        localStorage.setItem("business_name", r.data.business_name);
+        onLogin(r.data);
+      } else {
+        if (!form.email || !form.password || !form.business_name || !form.sector || !form.phone) {
+          setError("Tüm alanları doldurun"); setLoading(false); return;
+        }
+        const r = await axios.post(`${API}/auth/register`, form);
+        localStorage.setItem("token", r.data.token);
+        localStorage.setItem("business_id", r.data.business_id);
+        localStorage.setItem("business_name", r.data.business_name);
+        onLogin(r.data);
+      }
+    } catch (e) {
+      setError(e?.response?.data?.detail || "Bir hata oluştu");
+    }
+    setLoading(false);
+  };
 
-const cardRow = {
-  padding:'12px 14px', borderRadius:10, marginBottom:8,
-  background:'#1a1a28', border:'1px solid #252535',
-};
-
-function Empty({ text }) {
   return (
-    <div style={{ textAlign:'center', padding:'40px 0', color:'#6b6b8a', fontSize:13 }}>
-      {text}
+    <div style={{ minHeight: "100vh", background: "#0f0f13", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans', sans-serif" }}>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+      <div style={{ width: 420, background: "#18181f", borderRadius: 20, padding: "48px 40px", border: "1px solid #2a2a35", boxShadow: "0 24px 80px rgba(0,0,0,0.5)" }}>
+        {/* Logo */}
+        <div style={{ textAlign: "center", marginBottom: 36 }}>
+          <div style={{ width: 52, height: 52, background: "linear-gradient(135deg, #6366f1, #8b5cf6)", borderRadius: 14, margin: "0 auto 16px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>🤖</div>
+          <h1 style={{ fontFamily: "'Syne', sans-serif", color: "#fff", fontSize: 24, fontWeight: 800, margin: 0 }}>AI Sales Agent</h1>
+          <p style={{ color: "#6b6b7e", fontSize: 13, margin: "6px 0 0" }}>İşletmeniz için AI destekli müşteri sistemi</p>
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display: "flex", background: "#0f0f13", borderRadius: 10, padding: 4, marginBottom: 28 }}>
+          {["login", "register"].map(m => (
+            <button key={m} onClick={() => { setMode(m); setError(""); }} style={{ flex: 1, padding: "8px 0", borderRadius: 8, border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600, background: mode === m ? "#6366f1" : "transparent", color: mode === m ? "#fff" : "#6b6b7e", transition: "all .2s" }}>
+              {m === "login" ? "Giriş Yap" : "Kayıt Ol"}
+            </button>
+          ))}
+        </div>
+
+        {/* Form */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {mode === "register" && (
+            <>
+              <Input label="İşletme Adı" value={form.business_name} onChange={v => update("business_name", v)} placeholder="Demo Kuaför" />
+              <Input label="Sektör" value={form.sector} onChange={v => update("sector", v)} placeholder="Kuaför, Restoran..." />
+              <Input label="Telefon" value={form.phone} onChange={v => update("phone", v)} placeholder="0555 123 4567" />
+            </>
+          )}
+          <Input label="Email" value={form.email} onChange={v => update("email", v)} placeholder="isletme@email.com" type="email" />
+          <Input label="Şifre" value={form.password} onChange={v => update("password", v)} placeholder="••••••••" type="password" />
+        </div>
+
+        {error && <div style={{ background: "#1f1020", border: "1px solid #ef4444", borderRadius: 8, padding: "10px 14px", color: "#ef4444", fontSize: 13, marginTop: 14 }}>{error}</div>}
+
+        <button onClick={submit} disabled={loading} style={{ width: "100%", marginTop: 20, padding: "13px 0", background: loading ? "#3730a3" : "linear-gradient(135deg, #6366f1, #8b5cf6)", color: "#fff", border: "none", borderRadius: 10, cursor: loading ? "default" : "pointer", fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 700, letterSpacing: 0.3, transition: "all .2s" }}>
+          {loading ? "..." : mode === "login" ? "Giriş Yap" : "Hesap Oluştur"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Input({ label, value, onChange, placeholder, type = "text" }) {
+  return (
+    <div>
+      <label style={{ display: "block", color: "#9090a0", fontSize: 12, fontWeight: 600, marginBottom: 5, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</label>
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+        style={{ width: "100%", padding: "10px 14px", background: "#0f0f13", border: "1px solid #2a2a35", borderRadius: 8, color: "#fff", fontSize: 14, fontFamily: "'DM Sans', sans-serif", outline: "none", boxSizing: "border-box" }} />
+    </div>
+  );
+}
+
+// Main Dashboard
+const MENU = [
+  { id: "dashboard", icon: "📊", label: "Genel Bakış" },
+  { id: "products", icon: "🛍️", label: "Ürünler & Hizmetler" },
+  { id: "faqs", icon: "💬", label: "Sık Sorulan Sorular" },
+  { id: "ai", icon: "🤖", label: "AI Asistan" },
+  { id: "customers", icon: "👥", label: "Müşteriler" },
+  { id: "leads", icon: "🎯", label: "Talepler" },
+];
+
+export default function App() {
+  const [auth, setAuth] = useState(() => {
+    const token = localStorage.getItem("token");
+    const business_id = localStorage.getItem("business_id");
+    const business_name = localStorage.getItem("business_name");
+    return token ? { token, business_id, business_name } : null;
+  });
+  const [page, setPage] = useState("dashboard");
+  const [notif, setNotif] = useState({ msg: "", type: "success" });
+
+  const notify = (msg, type = "success") => setNotif({ msg, type });
+  const logout = () => { localStorage.clear(); setAuth(null); };
+
+  if (!auth) return <AuthPage onLogin={d => setAuth(d)} />;
+
+  return (
+    <div style={{ display: "flex", minHeight: "100vh", background: "#0f0f13", fontFamily: "'DM Sans', sans-serif" }}>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+      <Notification msg={notif.msg} type={notif.type} onClose={() => setNotif({ msg: "", type: "success" })} />
+
+      {/* Sidebar */}
+      <div style={{ width: 240, background: "#18181f", borderRight: "1px solid #2a2a35", display: "flex", flexDirection: "column", padding: "24px 0" }}>
+        <div style={{ padding: "0 20px 28px", borderBottom: "1px solid #2a2a35" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 36, height: 36, background: "linear-gradient(135deg, #6366f1, #8b5cf6)", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>🤖</div>
+            <div>
+              <div style={{ fontFamily: "'Syne', sans-serif", color: "#fff", fontSize: 13, fontWeight: 700 }}>AI Sales Agent</div>
+              <div style={{ color: "#6366f1", fontSize: 11, fontWeight: 600 }}>{auth.business_name || "İşletme"}</div>
+            </div>
+          </div>
+        </div>
+
+        <nav style={{ flex: 1, padding: "16px 12px" }}>
+          {MENU.map(m => (
+            <button key={m.id} onClick={() => setPage(m.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, border: "none", cursor: "pointer", background: page === m.id ? "linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.1))" : "transparent", color: page === m.id ? "#a5b4fc" : "#6b6b7e", fontSize: 13, fontWeight: page === m.id ? 600 : 400, textAlign: "left", marginBottom: 2, borderLeft: page === m.id ? "2px solid #6366f1" : "2px solid transparent", transition: "all .15s" }}>
+              <span style={{ fontSize: 16 }}>{m.icon}</span> {m.label}
+            </button>
+          ))}
+        </nav>
+
+        <div style={{ padding: "16px 12px", borderTop: "1px solid #2a2a35" }}>
+          <button onClick={logout} style={{ width: "100%", padding: "9px 12px", background: "transparent", border: "1px solid #2a2a35", borderRadius: 8, color: "#6b6b7e", cursor: "pointer", fontSize: 13, fontFamily: "'DM Sans', sans-serif" }}>Çıkış Yap</button>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div style={{ flex: 1, overflow: "auto" }}>
+        {page === "dashboard" && <DashboardPage notify={notify} auth={auth} />}
+        {page === "products" && <ProductsPage notify={notify} />}
+        {page === "faqs" && <FAQsPage notify={notify} />}
+        {page === "ai" && <AIPage notify={notify} auth={auth} />}
+        {page === "customers" && <CustomersPage notify={notify} />}
+        {page === "leads" && <LeadsPage notify={notify} />}
+      </div>
+    </div>
+  );
+}
+
+// --- PAGES ---
+
+function PageHeader({ title, subtitle }) {
+  return (
+    <div style={{ padding: "32px 36px 0" }}>
+      <h1 style={{ fontFamily: "'Syne', sans-serif", color: "#fff", fontSize: 22, fontWeight: 800, margin: "0 0 4px" }}>{title}</h1>
+      {subtitle && <p style={{ color: "#6b6b7e", fontSize: 13, margin: 0 }}>{subtitle}</p>}
+    </div>
+  );
+}
+
+function Card({ children, style = {} }) {
+  return <div style={{ background: "#18181f", border: "1px solid #2a2a35", borderRadius: 14, padding: 24, ...style }}>{children}</div>;
+}
+
+function Btn({ children, onClick, color = "#6366f1", small = false, disabled = false }) {
+  return (
+    <button onClick={onClick} disabled={disabled} style={{ padding: small ? "7px 14px" : "10px 20px", background: disabled ? "#333" : color, color: "#fff", border: "none", borderRadius: 8, cursor: disabled ? "default" : "pointer", fontSize: small ? 12 : 13, fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>
+      {children}
+    </button>
+  );
+}
+
+// Dashboard
+function DashboardPage({ notify, auth }) {
+  const [stats, setStats] = useState({ products: 0, faqs: 0, customers: 0, leads: 0 });
+  const [business, setBusiness] = useState(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [p, f, c, l, b] = await Promise.all([
+          axios.get(`${API}/products/`, { headers: getHeaders() }),
+          axios.get(`${API}/faqs/`, { headers: getHeaders() }),
+          axios.get(`${API}/chat/history`, { headers: getHeaders() }),
+          axios.get(`${API}/leads/`, { headers: getHeaders() }),
+          axios.get(`${API}/businesses/`, { headers: getHeaders() }),
+        ]);
+        setStats({ products: p.data.length, faqs: f.data.length, customers: c.data.length, leads: l.data.length });
+        if (b.data.length > 0) setBusiness(b.data[0]);
+      } catch (e) { console.error(e); }
+    };
+    load();
+  }, []);
+
+  const statCards = [
+    { label: "Ürün & Hizmet", value: stats.products, icon: "🛍️", color: "#6366f1" },
+    { label: "SSS", value: stats.faqs, icon: "💬", color: "#8b5cf6" },
+    { label: "Müşteri", value: stats.customers, icon: "👥", color: "#06b6d4" },
+    { label: "Talep", value: stats.leads, icon: "🎯", color: "#10b981" },
+  ];
+
+  return (
+    <div style={{ padding: 36 }}>
+      <PageHeader title={`Hoş geldiniz 👋`} subtitle={business ? `${business.name} — ${business.sector}` : "İşletme paneli"} />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginTop: 28 }}>
+        {statCards.map(s => (
+          <Card key={s.label}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>{s.icon}</div>
+            <div style={{ color: s.color, fontSize: 32, fontWeight: 800, fontFamily: "'Syne', sans-serif" }}>{s.value}</div>
+            <div style={{ color: "#6b6b7e", fontSize: 12, marginTop: 2 }}>{s.label}</div>
+          </Card>
+        ))}
+      </div>
+
+      {business && (
+        <Card style={{ marginTop: 20 }}>
+          <h3 style={{ color: "#fff", fontFamily: "'Syne', sans-serif", margin: "0 0 16px" }}>İşletme Bilgileri</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+            {[["İşletme Adı", business.name], ["Sektör", business.sector], ["Telefon", business.phone]].map(([k, v]) => (
+              <div key={k}>
+                <div style={{ color: "#6b6b7e", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{k}</div>
+                <div style={{ color: "#e0e0f0", fontSize: 14, fontWeight: 500 }}>{v}</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// Products
+function ProductsPage({ notify }) {
+  const [products, setProducts] = useState([]);
+  const [form, setForm] = useState({ name: "", price: "", description: "" });
+
+  const load = async () => {
+    const r = await axios.get(`${API}/products/`, { headers: getHeaders() });
+    setProducts(r.data);
+  };
+  useEffect(() => { load(); }, []);
+
+  const add = async () => {
+    if (!form.name || !form.price) return notify("Ad ve fiyat gerekli", "error");
+    try {
+      await axios.post(`${API}/products/`, { name: form.name, price: parseFloat(form.price), description: form.description }, { headers: getHeaders() });
+      setForm({ name: "", price: "", description: "" });
+      await load();
+      notify("Ürün eklendi ✓");
+    } catch (e) { notify("Hata", "error"); }
+  };
+
+  const del = async (id) => {
+    await axios.delete(`${API}/products/${id}`, { headers: getHeaders() });
+    await load();
+    notify("Silindi");
+  };
+
+  return (
+    <div style={{ padding: 36 }}>
+      <PageHeader title="Ürünler & Hizmetler" subtitle="AI asistanın fiyat ve hizmet bilgisi bu verilerden oluşur" />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginTop: 28 }}>
+        <Card>
+          <h3 style={{ color: "#fff", fontFamily: "'Syne', sans-serif", margin: "0 0 16px", fontSize: 15 }}>Yeni Ekle</h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <FInput label="Ürün / Hizmet Adı" value={form.name} onChange={v => setForm(p => ({ ...p, name: v }))} placeholder="Saç Kesimi" />
+            <FInput label="Fiyat (TL)" value={form.price} onChange={v => setForm(p => ({ ...p, price: v }))} placeholder="150" type="number" />
+            <FInput label="Açıklama (opsiyonel)" value={form.description} onChange={v => setForm(p => ({ ...p, description: v }))} placeholder="Kısa açıklama..." />
+            <Btn onClick={add}>+ Ekle</Btn>
+          </div>
+        </Card>
+        <Card>
+          <h3 style={{ color: "#fff", fontFamily: "'Syne', sans-serif", margin: "0 0 16px", fontSize: 15 }}>Ürün Listesi ({products.length})</h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {products.length === 0 && <div style={{ color: "#6b6b7e", fontSize: 13 }}>Henüz ürün eklenmedi</div>}
+            {products.map(p => (
+              <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "#0f0f13", borderRadius: 8 }}>
+                <div>
+                  <div style={{ color: "#e0e0f0", fontSize: 13, fontWeight: 500 }}>{p.name}</div>
+                  <div style={{ color: "#6366f1", fontSize: 12, marginTop: 2 }}>{p.price} TL</div>
+                </div>
+                <Btn onClick={() => del(p.id)} color="#ef4444" small>Sil</Btn>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// FAQs
+function FAQsPage({ notify }) {
+  const [faqs, setFaqs] = useState([]);
+  const [form, setForm] = useState({ question: "", answer: "" });
+
+  const load = async () => { const r = await axios.get(`${API}/faqs/`, { headers: getHeaders() }); setFaqs(r.data); };
+  useEffect(() => { load(); }, []);
+
+  const add = async () => {
+    if (!form.question || !form.answer) return notify("Soru ve cevap gerekli", "error");
+    try {
+      await axios.post(`${API}/faqs/`, form, { headers: getHeaders() });
+      setForm({ question: "", answer: "" });
+      await load();
+      notify("SSS eklendi ✓");
+    } catch (e) { notify("Hata", "error"); }
+  };
+
+  const del = async (id) => { await axios.delete(`${API}/faqs/${id}`, { headers: getHeaders() }); await load(); notify("Silindi"); };
+
+  return (
+    <div style={{ padding: 36 }}>
+      <PageHeader title="Sık Sorulan Sorular" subtitle="Müşterilerin sık sorduğu sorulara AI otomatik cevap verir" />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginTop: 28 }}>
+        <Card>
+          <h3 style={{ color: "#fff", fontFamily: "'Syne', sans-serif", margin: "0 0 16px", fontSize: 15 }}>Yeni SSS Ekle</h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <FInput label="Soru" value={form.question} onChange={v => setForm(p => ({ ...p, question: v }))} placeholder="Saat kaçta açılıyorsunuz?" />
+            <FInput label="Cevap" value={form.answer} onChange={v => setForm(p => ({ ...p, answer: v }))} placeholder="09:00 - 20:00 arası..." textarea />
+            <Btn onClick={add}>+ Ekle</Btn>
+          </div>
+        </Card>
+        <Card>
+          <h3 style={{ color: "#fff", fontFamily: "'Syne', sans-serif", margin: "0 0 16px", fontSize: 15 }}>SSS Listesi ({faqs.length})</h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 400, overflow: "auto" }}>
+            {faqs.length === 0 && <div style={{ color: "#6b6b7e", fontSize: 13 }}>Henüz SSS eklenmedi</div>}
+            {faqs.map(f => (
+              <div key={f.id} style={{ padding: "12px 14px", background: "#0f0f13", borderRadius: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: "#a5b4fc", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>S: {f.question}</div>
+                    <div style={{ color: "#9090a0", fontSize: 12 }}>C: {f.answer}</div>
+                  </div>
+                  <Btn onClick={() => del(f.id)} color="#ef4444" small>Sil</Btn>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// AI Asistan
+function AIPage({ notify, auth }) {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [showLead, setShowLead] = useState(false);
+  const [leadForm, setLeadForm] = useState({ customer_name: "", customer_phone: "", note: "" });
+  const endRef = useRef(null);
+
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  const send = async () => {
+    if (!input.trim() || loading) return;
+    const userMsg = input.trim();
+    setInput("");
+    setMessages(p => [...p, { role: "user", text: userMsg }]);
+    setLoading(true);
+    try {
+      const r = await axios.post(`${API}/chat/`, { message: userMsg, customer_phone: "panel_test" }, { headers: getHeaders() });
+      setMessages(p => [...p, { role: "assistant", text: r.data.reply }]);
+      if (messages.length >= 3) setShowLead(true);
+    } catch (e) { notify("AI yanıt vermedi", "error"); }
+    setLoading(false);
+  };
+
+  const saveLead = async () => {
+    try {
+      const note = leadForm.note || messages.map(m => `${m.role === "user" ? "Müşteri" : "AI"}: ${m.text}`).join("\n");
+      await axios.post(`${API}/leads/`, { ...leadForm, note }, { headers: getHeaders() });
+      setShowLead(false);
+      setLeadForm({ customer_name: "", customer_phone: "", note: "" });
+      notify("Talep oluşturuldu ✓");
+    } catch (e) { notify("Hata", "error"); }
+  };
+
+  const quickBtns = ["Fiyatlarınız nedir?", "Çalışma saatleriniz?", "Randevu alabilir miyim?"];
+
+  return (
+    <div style={{ padding: 36 }}>
+      <PageHeader title="AI Asistan" subtitle="Müşteri sorularına AI'nın nasıl yanıt verdiğini test edin" />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: 20, marginTop: 28 }}>
+        {/* Chat */}
+        <Card style={{ display: "flex", flexDirection: "column", height: 520, padding: 0, overflow: "hidden" }}>
+          <div style={{ padding: "16px 20px", borderBottom: "1px solid #2a2a35", display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981" }}></div>
+            <span style={{ color: "#e0e0f0", fontSize: 13, fontWeight: 600 }}>AI Asistan Aktif</span>
+          </div>
+
+          <div style={{ flex: 1, overflow: "auto", padding: "16px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
+            {messages.length === 0 && (
+              <div style={{ textAlign: "center", marginTop: 60 }}>
+                <div style={{ fontSize: 40, marginBottom: 12 }}>🤖</div>
+                <div style={{ color: "#6b6b7e", fontSize: 13 }}>Test mesajı göndererek başlayın</div>
+                <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 16, flexWrap: "wrap" }}>
+                  {quickBtns.map(b => (
+                    <button key={b} onClick={() => setInput(b)} style={{ padding: "7px 12px", background: "#0f0f13", border: "1px solid #2a2a35", borderRadius: 20, color: "#9090a0", fontSize: 11, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>{b}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {messages.map((m, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
+                <div style={{ maxWidth: "75%", padding: "10px 14px", borderRadius: m.role === "user" ? "14px 14px 4px 14px" : "14px 14px 14px 4px", background: m.role === "user" ? "linear-gradient(135deg, #6366f1, #8b5cf6)" : "#0f0f13", color: "#fff", fontSize: 13, lineHeight: 1.5, border: m.role === "assistant" ? "1px solid #2a2a35" : "none" }}>
+                  {m.text}
+                </div>
+              </div>
+            ))}
+            {loading && (
+              <div style={{ display: "flex", gap: 4, padding: "10px 14px" }}>
+                {[0, 1, 2].map(i => <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: "#6366f1", animation: `bounce 1s ${i * 0.2}s infinite` }}></div>)}
+              </div>
+            )}
+            <div ref={endRef} />
+          </div>
+
+          <div style={{ padding: "12px 16px", borderTop: "1px solid #2a2a35", display: "flex", gap: 8 }}>
+            <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && send()} placeholder="Mesajınızı yazın..." style={{ flex: 1, padding: "10px 14px", background: "#0f0f13", border: "1px solid #2a2a35", borderRadius: 8, color: "#fff", fontSize: 13, fontFamily: "'DM Sans', sans-serif", outline: "none" }} />
+            <Btn onClick={send} disabled={loading}>Gönder</Btn>
+          </div>
+        </Card>
+
+        {/* Lead Panel */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <Card>
+            <h3 style={{ color: "#fff", fontFamily: "'Syne', sans-serif", margin: "0 0 14px", fontSize: 14 }}>🎯 Talep Oluştur</h3>
+            <p style={{ color: "#6b6b7e", fontSize: 12, margin: "0 0 14px", lineHeight: 1.6 }}>Konuşmadan bir müşteri talebi oluşturun. Müşteri bilgileri ve notu kaydedin.</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <FInput label="Müşteri Adı" value={leadForm.customer_name} onChange={v => setLeadForm(p => ({ ...p, customer_name: v }))} placeholder="Ad Soyad" />
+              <FInput label="Telefon" value={leadForm.customer_phone} onChange={v => setLeadForm(p => ({ ...p, customer_phone: v }))} placeholder="0555..." />
+              <FInput label="Not" value={leadForm.note} onChange={v => setLeadForm(p => ({ ...p, note: v }))} placeholder="Talep notu..." textarea />
+              <Btn onClick={saveLead} disabled={messages.length === 0}>Talebi Kaydet</Btn>
+            </div>
+          </Card>
+
+          {showLead && (
+            <Card style={{ border: "1px solid #10b981", background: "rgba(16,185,129,0.05)" }}>
+              <div style={{ color: "#10b981", fontSize: 13, fontWeight: 600 }}>💡 Konuşma devam ediyor</div>
+              <div style={{ color: "#6b6b7e", fontSize: 12, marginTop: 6 }}>Müşteri ilgileniyor gibi görünüyor. Talep oluşturmayı unutmayın!</div>
+            </Card>
+          )}
+        </div>
+      </div>
+
+      <style>{`@keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }`}</style>
+    </div>
+  );
+}
+
+// Customers
+function CustomersPage({ notify }) {
+  const [customers, setCustomers] = useState([]);
+  const [selected, setSelected] = useState(null);
+
+  useEffect(() => {
+    axios.get(`${API}/chat/history`, { headers: getHeaders() }).then(r => setCustomers(r.data));
+  }, []);
+
+  return (
+    <div style={{ padding: 36 }}>
+      <PageHeader title="Müşteriler" subtitle="WhatsApp ve panel üzerinden gelen tüm konuşmalar" />
+      <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 20, marginTop: 28 }}>
+        <Card style={{ padding: 0, overflow: "hidden" }}>
+          <div style={{ padding: "14px 16px", borderBottom: "1px solid #2a2a35", color: "#9090a0", fontSize: 12, fontWeight: 600 }}>MÜŞTERİLER ({customers.length})</div>
+          {customers.length === 0 && <div style={{ padding: 20, color: "#6b6b7e", fontSize: 13 }}>Henüz müşteri yok</div>}
+          {customers.map(c => (
+            <div key={c.customer_id} onClick={() => setSelected(c)} style={{ padding: "12px 16px", borderBottom: "1px solid #2a2a35", cursor: "pointer", background: selected?.customer_id === c.customer_id ? "rgba(99,102,241,0.1)" : "transparent" }}>
+              <div style={{ color: "#e0e0f0", fontSize: 13, fontWeight: 500 }}>📱 {c.whatsapp}</div>
+              <div style={{ color: "#6b6b7e", fontSize: 11, marginTop: 2 }}>{c.messages.length} mesaj</div>
+            </div>
+          ))}
+        </Card>
+
+        <Card>
+          {!selected ? (
+            <div style={{ textAlign: "center", marginTop: 60, color: "#6b6b7e" }}>Sol listeden müşteri seçin</div>
+          ) : (
+            <>
+              <h3 style={{ color: "#fff", fontFamily: "'Syne', sans-serif", margin: "0 0 16px" }}>📱 {selected.whatsapp}</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 400, overflow: "auto" }}>
+                {selected.messages.map((m, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
+                    <div style={{ maxWidth: "70%", padding: "9px 13px", borderRadius: 10, background: m.role === "user" ? "rgba(99,102,241,0.2)" : "#0f0f13", border: "1px solid #2a2a35" }}>
+                      <div style={{ color: m.role === "user" ? "#a5b4fc" : "#9090a0", fontSize: 10, marginBottom: 3, textTransform: "uppercase", letterSpacing: 0.5 }}>{m.role === "user" ? "Müşteri" : "AI"}</div>
+                      <div style={{ color: "#e0e0f0", fontSize: 13 }}>{m.text}</div>
+                      <div style={{ color: "#4a4a5a", fontSize: 10, marginTop: 3 }}>{new Date(m.created_at).toLocaleString("tr-TR")}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// Leads
+function LeadsPage({ notify }) {
+  const [leads, setLeads] = useState([]);
+
+  const load = async () => { const r = await axios.get(`${API}/leads/`, { headers: getHeaders() }); setLeads(r.data); };
+  useEffect(() => { load(); }, []);
+
+  const statusColors = { new: "#f59e0b", contacted: "#6366f1", closed: "#10b981" };
+  const statusLabels = { new: "Yeni", contacted: "İletişime Geçildi", closed: "Kapatıldı" };
+
+  const updateStatus = async (id, status) => {
+    await axios.patch(`${API}/leads/${id}/status?status=${status}`, {}, { headers: getHeaders() });
+    await load();
+    notify("Durum güncellendi");
+  };
+
+  return (
+    <div style={{ padding: 36 }}>
+      <PageHeader title="Talepler" subtitle="AI asistan konuşmalarından oluşturulan müşteri talepleri" />
+      <Card style={{ marginTop: 28 }}>
+        {leads.length === 0 && <div style={{ color: "#6b6b7e", fontSize: 13 }}>Henüz talep yok. AI Asistan sayfasından talep oluşturabilirsiniz.</div>}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {leads.map(l => (
+            <div key={l.id} style={{ padding: "14px 16px", background: "#0f0f13", borderRadius: 10, display: "flex", alignItems: "flex-start", gap: 16, border: "1px solid #2a2a35" }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <span style={{ color: "#e0e0f0", fontSize: 13, fontWeight: 600 }}>{l.customer_name || "İsimsiz Müşteri"}</span>
+                  {l.customer_phone && <span style={{ color: "#6b6b7e", fontSize: 12 }}>• {l.customer_phone}</span>}
+                  <span style={{ padding: "2px 8px", borderRadius: 20, background: `${statusColors[l.status]}22`, color: statusColors[l.status], fontSize: 11, fontWeight: 600 }}>{statusLabels[l.status]}</span>
+                </div>
+                {l.note && <div style={{ color: "#9090a0", fontSize: 12, lineHeight: 1.5 }}>{l.note.substring(0, 120)}{l.note.length > 120 ? "..." : ""}</div>}
+                <div style={{ color: "#4a4a5a", fontSize: 11, marginTop: 6 }}>{new Date(l.created_at).toLocaleString("tr-TR")}</div>
+              </div>
+              <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                {l.status === "new" && <Btn onClick={() => updateStatus(l.id, "contacted")} small color="#6366f1">İletişime Geç</Btn>}
+                {l.status !== "closed" && <Btn onClick={() => updateStatus(l.id, "closed")} small color="#10b981">Kapat</Btn>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// Shared form input
+function FInput({ label, value, onChange, placeholder, type = "text", textarea = false }) {
+  const style = { width: "100%", padding: "9px 12px", background: "#0f0f13", border: "1px solid #2a2a35", borderRadius: 8, color: "#fff", fontSize: 13, fontFamily: "'DM Sans', sans-serif", outline: "none", resize: "vertical", boxSizing: "border-box" };
+  return (
+    <div>
+      {label && <label style={{ display: "block", color: "#9090a0", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{label}</label>}
+      {textarea ? <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ ...style, minHeight: 70 }} /> : <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={style} />}
     </div>
   );
 }
