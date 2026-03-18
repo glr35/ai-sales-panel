@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 
-const API = "https://coal-restoration-viking-already.trycloudflare.com";
-// Token helpers
+const API = "https://ai-sales-agent-production-6a6b.up.railway.app";// Token helpers
 const getToken = () => localStorage.getItem("token");
 const getHeaders = () => ({ Authorization: `Bearer ${getToken()}` });
 
