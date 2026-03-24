@@ -3,27 +3,43 @@ import axios from "axios";
 
 const API = "https://ai-sales-agent-production-6a6b.up.railway.app";
 
-// Axios instance
 const api = axios.create({
   baseURL: API,
 });
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
+  config.headers = config.headers || {};
+
   if (token) {
-    config.headers = config.headers || {};
     config.headers.Authorization = `Bearer ${token}`;
   }
+
   return config;
 });
 
-// Notification
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 401) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("business_id");
+      localStorage.removeItem("business_name");
+
+      if (!window.location.pathname.includes("auth-resetting")) {
+        window.location.reload();
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
+
 function Notification({ msg, type, onClose }) {
   useEffect(() => {
-    if (msg) {
-      const t = setTimeout(onClose, 3000);
-      return () => clearTimeout(t);
-    }
+    if (!msg) return;
+    const t = setTimeout(onClose, 3000);
+    return () => clearTimeout(t);
   }, [msg, onClose]);
 
   if (!msg) return null;
@@ -52,9 +68,8 @@ function Notification({ msg, type, onClose }) {
   );
 }
 
-// Auth Pages
 function AuthPage({ onLogin }) {
-  const [mode, setMode] = useState("login"); // login | register
+  const [mode, setMode] = useState("login");
   const [form, setForm] = useState({
     email: "",
     password: "",
@@ -65,7 +80,7 @@ function AuthPage({ onLogin }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const update = (k, v) => setForm((p) => ({ ...p, [k]: v }));
+  const update = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
 
   const submit = async () => {
     setError("");
@@ -78,10 +93,16 @@ function AuthPage({ onLogin }) {
           password: form.password,
         });
 
-        localStorage.setItem("token", r.data.token);
-        localStorage.setItem("business_id", r.data.business_id);
-        localStorage.setItem("business_name", r.data.business_name);
-        onLogin(r.data);
+        const payload = {
+          token: r.data.token,
+          business_id: r.data.business_id,
+          business_name: r.data.business_name,
+        };
+
+        localStorage.setItem("token", payload.token);
+        localStorage.setItem("business_id", String(payload.business_id ?? ""));
+        localStorage.setItem("business_name", payload.business_name ?? "");
+        onLogin(payload);
       } else {
         if (
           !form.email ||
@@ -95,19 +116,35 @@ function AuthPage({ onLogin }) {
           return;
         }
 
-        const r = await api.post("/auth/register", form);
+        const r = await api.post("/auth/register", {
+          email: form.email,
+          password: form.password,
+          business_name: form.business_name,
+          sector: form.sector,
+          phone: form.phone,
+        });
 
-        localStorage.setItem("token", r.data.token);
-        localStorage.setItem("business_id", r.data.business_id);
-        localStorage.setItem("business_name", r.data.business_name);
-        onLogin(r.data);
+        const payload = {
+          token: r.data.token,
+          business_id: r.data.business_id,
+          business_name: r.data.business_name,
+        };
+
+        localStorage.setItem("token", payload.token);
+        localStorage.setItem("business_id", String(payload.business_id ?? ""));
+        localStorage.setItem("business_name", payload.business_name ?? "");
+        onLogin(payload);
       }
     } catch (e) {
       console.error("AUTH ERROR:", e?.response?.data || e);
-      setError(e?.response?.data?.detail || "Bir hata oluştu");
+      setError(
+        e?.response?.data?.detail ||
+          e?.response?.data?.message ||
+          "Giriş başarısız"
+      );
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
@@ -125,6 +162,7 @@ function AuthPage({ onLogin }) {
         href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Syne:wght@600;700;800&display=swap"
         rel="stylesheet"
       />
+
       <div
         style={{
           width: 420,
@@ -151,6 +189,7 @@ function AuthPage({ onLogin }) {
           >
             🤖
           </div>
+
           <h1
             style={{
               fontFamily: "'Syne', sans-serif",
@@ -162,6 +201,7 @@ function AuthPage({ onLogin }) {
           >
             AI Sales Agent
           </h1>
+
           <p
             style={{
               color: "#6b6b7e",
@@ -231,6 +271,7 @@ function AuthPage({ onLogin }) {
               />
             </>
           )}
+
           <Input
             label="Email"
             value={form.email}
@@ -238,6 +279,7 @@ function AuthPage({ onLogin }) {
             placeholder="isletme@email.com"
             type="email"
           />
+
           <Input
             label="Şifre"
             value={form.password}
@@ -307,6 +349,7 @@ function Input({ label, value, onChange, placeholder, type = "text" }) {
       >
         {label}
       </label>
+
       <input
         type={type}
         value={value}
@@ -339,22 +382,29 @@ const MENU = [
 ];
 
 export default function App() {
-const [auth, setAuth] = useState(() => {
-  const token = localStorage.getItem("token");
-  const business_id = localStorage.getItem("business_id");
-  const business_name = localStorage.getItem("business_name");
-  return token ? { token, business_id, business_name } : null;
-});
-const [page, setPage] = useState("dashboard");
+  const [auth, setAuth] = useState(() => {
+    const token = localStorage.getItem("token");
+    const business_id = localStorage.getItem("business_id");
+    const business_name = localStorage.getItem("business_name");
+
+    return token ? { token, business_id, business_name } : null;
+  });
+
+  const [page, setPage] = useState("dashboard");
   const [notif, setNotif] = useState({ msg: "", type: "success" });
 
   const notify = (msg, type = "success") => setNotif({ msg, type });
+
   const logout = () => {
-    localStorage.clear();
+    localStorage.removeItem("token");
+    localStorage.removeItem("business_id");
+    localStorage.removeItem("business_name");
     setAuth(null);
   };
 
-  if (!auth) return <AuthPage onLogin={(d) => setAuth(d)} />;
+  if (!auth) {
+    return <AuthPage onLogin={(data) => setAuth(data)} />;
+  }
 
   return (
     <div
@@ -369,6 +419,7 @@ const [page, setPage] = useState("dashboard");
         href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Syne:wght@600;700;800&display=swap"
         rel="stylesheet"
       />
+
       <Notification
         msg={notif.msg}
         type={notif.type}
@@ -406,6 +457,7 @@ const [page, setPage] = useState("dashboard");
             >
               🤖
             </div>
+
             <div>
               <div
                 style={{
@@ -417,6 +469,7 @@ const [page, setPage] = useState("dashboard");
               >
                 AI Sales Agent
               </div>
+
               <div
                 style={{
                   color: "#6366f1",
@@ -460,7 +513,8 @@ const [page, setPage] = useState("dashboard");
                 transition: "all .15s",
               }}
             >
-              <span style={{ fontSize: 16 }}>{m.icon}</span> {m.label}
+              <span style={{ fontSize: 16 }}>{m.icon}</span>
+              {m.label}
             </button>
           ))}
         </nav>
@@ -486,7 +540,7 @@ const [page, setPage] = useState("dashboard");
       </div>
 
       <div style={{ flex: 1, overflow: "auto" }}>
-        {page === "dashboard" && <DashboardPage notify={notify} auth={auth} />}
+        {page === "dashboard" && <DashboardPage auth={auth} />}
         {page === "products" && <ProductsPage notify={notify} />}
         {page === "faqs" && <FAQsPage notify={notify} />}
         {page === "ai" && <AIPage notify={notify} auth={auth} />}
@@ -496,8 +550,6 @@ const [page, setPage] = useState("dashboard");
     </div>
   );
 }
-
-// --- PAGES ---
 
 function PageHeader({ title, subtitle }) {
   return (
@@ -536,7 +588,13 @@ function Card({ children, style = {} }) {
   );
 }
 
-function Btn({ children, onClick, color = "#6366f1", small = false, disabled = false }) {
+function Btn({
+  children,
+  onClick,
+  color = "#6366f1",
+  small = false,
+  disabled = false,
+}) {
   return (
     <button
       onClick={onClick}
@@ -558,7 +616,6 @@ function Btn({ children, onClick, color = "#6366f1", small = false, disabled = f
   );
 }
 
-// Dashboard
 function DashboardPage({ auth }) {
   const [stats, setStats] = useState({
     products: 0,
@@ -653,6 +710,7 @@ function DashboardPage({ auth }) {
           >
             İşletme Bilgileri
           </h3>
+
           <div
             style={{
               display: "grid",
@@ -695,7 +753,6 @@ function DashboardPage({ auth }) {
   );
 }
 
-// Products
 function ProductsPage({ notify }) {
   const [products, setProducts] = useState([]);
   const [form, setForm] = useState({ name: "", price: "", description: "" });
@@ -753,6 +810,7 @@ function ProductsPage({ notify }) {
         title="Ürünler & Hizmetler"
         subtitle="AI asistanın fiyat ve hizmet bilgisi bu verilerden oluşur"
       />
+
       <div
         style={{
           display: "grid",
@@ -772,6 +830,7 @@ function ProductsPage({ notify }) {
           >
             Yeni Ekle
           </h3>
+
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <FInput
               label="Ürün / Hizmet Adı"
@@ -807,6 +866,7 @@ function ProductsPage({ notify }) {
           >
             Ürün Listesi ({products.length})
           </h3>
+
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {products.length === 0 && (
               <div style={{ color: "#6b6b7e", fontSize: 13 }}>
@@ -846,6 +906,7 @@ function ProductsPage({ notify }) {
                     {p.price} TL
                   </div>
                 </div>
+
                 <Btn onClick={() => del(p.id)} color="#ef4444" small>
                   Sil
                 </Btn>
@@ -858,7 +919,6 @@ function ProductsPage({ notify }) {
   );
 }
 
-// FAQs
 function FAQsPage({ notify }) {
   const [faqs, setFaqs] = useState([]);
   const [form, setForm] = useState({ question: "", answer: "" });
@@ -911,6 +971,7 @@ function FAQsPage({ notify }) {
         title="Sık Sorulan Sorular"
         subtitle="Müşterilerin sık sorduğu sorulara AI otomatik cevap verir"
       />
+
       <div
         style={{
           display: "grid",
@@ -930,6 +991,7 @@ function FAQsPage({ notify }) {
           >
             Yeni SSS Ekle
           </h3>
+
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <FInput
               label="Soru"
@@ -959,6 +1021,7 @@ function FAQsPage({ notify }) {
           >
             SSS Listesi ({faqs.length})
           </h3>
+
           <div
             style={{
               display: "flex",
@@ -1005,6 +1068,7 @@ function FAQsPage({ notify }) {
                       C: {f.answer}
                     </div>
                   </div>
+
                   <Btn onClick={() => del(f.id)} color="#ef4444" small>
                     Sil
                   </Btn>
@@ -1018,7 +1082,6 @@ function FAQsPage({ notify }) {
   );
 }
 
-// AI Asistan
 function AIPage({ notify }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -1057,9 +1120,9 @@ function AIPage({ notify }) {
     } catch (e) {
       console.error("CHAT ERROR:", e?.response?.data || e);
       notify(e?.response?.data?.detail || "AI yanıt vermedi", "error");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   const saveLead = async () => {
@@ -1093,6 +1156,7 @@ function AIPage({ notify }) {
         title="AI Asistan"
         subtitle="Müşteri sorularına AI'nın nasıl yanıt verdiğini test edin"
       />
+
       <div
         style={{
           display: "grid",
@@ -1126,7 +1190,7 @@ function AIPage({ notify }) {
                 borderRadius: "50%",
                 background: "#10b981",
               }}
-            ></div>
+            />
             <span style={{ color: "#e0e0f0", fontSize: 13, fontWeight: 600 }}>
               AI Asistan Aktif
             </span>
@@ -1148,6 +1212,7 @@ function AIPage({ notify }) {
                 <div style={{ color: "#6b6b7e", fontSize: 13 }}>
                   Test mesajı göndererek başlayın
                 </div>
+
                 <div
                   style={{
                     display: "flex",
@@ -1202,7 +1267,8 @@ function AIPage({ notify }) {
                     color: "#fff",
                     fontSize: 13,
                     lineHeight: 1.5,
-                    border: m.role === "assistant" ? "1px solid #2a2a35" : "none",
+                    border:
+                      m.role === "assistant" ? "1px solid #2a2a35" : "none",
                   }}
                 >
                   {m.text}
@@ -1222,7 +1288,7 @@ function AIPage({ notify }) {
                       background: "#6366f1",
                       animation: `bounce 1s ${i * 0.2}s infinite`,
                     }}
-                  ></div>
+                  />
                 ))}
               </div>
             )}
@@ -1255,6 +1321,7 @@ function AIPage({ notify }) {
                 outline: "none",
               }}
             />
+
             <Btn onClick={send} disabled={loading}>
               Gönder
             </Btn>
@@ -1273,6 +1340,7 @@ function AIPage({ notify }) {
             >
               🎯 Talep Oluştur
             </h3>
+
             <p
               style={{
                 color: "#6b6b7e",
@@ -1281,19 +1349,25 @@ function AIPage({ notify }) {
                 lineHeight: 1.6,
               }}
             >
-              Konuşmadan bir müşteri talebi oluşturun. Müşteri bilgileri ve notu kaydedin.
+              Konuşmadan bir müşteri talebi oluşturun. Müşteri bilgileri ve notu
+              kaydedin.
             </p>
+
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <FInput
                 label="Müşteri Adı"
                 value={leadForm.customer_name}
-                onChange={(v) => setLeadForm((p) => ({ ...p, customer_name: v }))}
+                onChange={(v) =>
+                  setLeadForm((p) => ({ ...p, customer_name: v }))
+                }
                 placeholder="Ad Soyad"
               />
               <FInput
                 label="Telefon"
                 value={leadForm.customer_phone}
-                onChange={(v) => setLeadForm((p) => ({ ...p, customer_phone: v }))}
+                onChange={(v) =>
+                  setLeadForm((p) => ({ ...p, customer_phone: v }))
+                }
                 placeholder="0555..."
               />
               <FInput
@@ -1327,12 +1401,16 @@ function AIPage({ notify }) {
         </div>
       </div>
 
-      <style>{`@keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }`}</style>
+      <style>{`
+        @keyframes bounce {
+          0%,100% { transform: translateY(0) }
+          50% { transform: translateY(-4px) }
+        }
+      `}</style>
     </div>
   );
 }
 
-// Customers
 function CustomersPage({ notify }) {
   const [customers, setCustomers] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -1357,6 +1435,7 @@ function CustomersPage({ notify }) {
         title="Müşteriler"
         subtitle="WhatsApp ve panel üzerinden gelen tüm konuşmalar"
       />
+
       <div
         style={{
           display: "grid",
@@ -1424,6 +1503,7 @@ function CustomersPage({ notify }) {
               >
                 📱 {selected.whatsapp}
               </h3>
+
               <div
                 style={{
                   display: "flex",
@@ -1465,9 +1545,11 @@ function CustomersPage({ notify }) {
                       >
                         {m.role === "user" ? "Müşteri" : "AI"}
                       </div>
+
                       <div style={{ color: "#e0e0f0", fontSize: 13 }}>
                         {m.text}
                       </div>
+
                       <div style={{ color: "#4a4a5a", fontSize: 10, marginTop: 3 }}>
                         {new Date(m.created_at).toLocaleString("tr-TR")}
                       </div>
@@ -1483,7 +1565,6 @@ function CustomersPage({ notify }) {
   );
 }
 
-// Leads
 function LeadsPage({ notify }) {
   const [leads, setLeads] = useState([]);
 
@@ -1501,8 +1582,17 @@ function LeadsPage({ notify }) {
     load();
   }, []);
 
-  const statusColors = { new: "#f59e0b", contacted: "#6366f1", closed: "#10b981" };
-  const statusLabels = { new: "Yeni", contacted: "İletişime Geçildi", closed: "Kapatıldı" };
+  const statusColors = {
+    new: "#f59e0b",
+    contacted: "#6366f1",
+    closed: "#10b981",
+  };
+
+  const statusLabels = {
+    new: "Yeni",
+    contacted: "İletişime Geçildi",
+    closed: "Kapatıldı",
+  };
 
   const updateStatus = async (id, status) => {
     try {
@@ -1521,12 +1611,14 @@ function LeadsPage({ notify }) {
         title="Talepler"
         subtitle="AI asistan konuşmalarından oluşturulan müşteri talepleri"
       />
+
       <Card style={{ marginTop: 28 }}>
         {leads.length === 0 && (
           <div style={{ color: "#6b6b7e", fontSize: 13 }}>
             Henüz talep yok. AI Asistan sayfasından talep oluşturabilirsiniz.
           </div>
         )}
+
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {leads.map((l) => (
             <div
@@ -1559,11 +1651,13 @@ function LeadsPage({ notify }) {
                   >
                     {l.customer_name || "İsimsiz Müşteri"}
                   </span>
+
                   {l.customer_phone && (
                     <span style={{ color: "#6b6b7e", fontSize: 12 }}>
                       • {l.customer_phone}
                     </span>
                   )}
+
                   <span
                     style={{
                       padding: "2px 8px",
@@ -1577,24 +1671,36 @@ function LeadsPage({ notify }) {
                     {statusLabels[l.status]}
                   </span>
                 </div>
+
                 {l.note && (
                   <div style={{ color: "#9090a0", fontSize: 12, lineHeight: 1.5 }}>
                     {l.note.substring(0, 120)}
                     {l.note.length > 120 ? "..." : ""}
                   </div>
                 )}
+
                 <div style={{ color: "#4a4a5a", fontSize: 11, marginTop: 6 }}>
                   {new Date(l.created_at).toLocaleString("tr-TR")}
                 </div>
               </div>
+
               <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                 {l.status === "new" && (
-                  <Btn onClick={() => updateStatus(l.id, "contacted")} small color="#6366f1">
+                  <Btn
+                    onClick={() => updateStatus(l.id, "contacted")}
+                    small
+                    color="#6366f1"
+                  >
                     İletişime Geç
                   </Btn>
                 )}
+
                 {l.status !== "closed" && (
-                  <Btn onClick={() => updateStatus(l.id, "closed")} small color="#10b981">
+                  <Btn
+                    onClick={() => updateStatus(l.id, "closed")}
+                    small
+                    color="#10b981"
+                  >
                     Kapat
                   </Btn>
                 )}
@@ -1607,8 +1713,14 @@ function LeadsPage({ notify }) {
   );
 }
 
-// Shared form input
-function FInput({ label, value, onChange, placeholder, type = "text", textarea = false }) {
+function FInput({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+  textarea = false,
+}) {
   const style = {
     width: "100%",
     padding: "9px 12px",
@@ -1639,6 +1751,7 @@ function FInput({ label, value, onChange, placeholder, type = "text", textarea =
           {label}
         </label>
       )}
+
       {textarea ? (
         <textarea
           value={value}
