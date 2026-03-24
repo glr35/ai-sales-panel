@@ -339,13 +339,12 @@ const MENU = [
 ];
 
 export default function App() {
-  const [auth, setAuth] = useState(() => {
-    const token = localStorage.getItem("token");
-    const business_id = localStorage.getItem("business_id");
-    const business_name = localStorage.getItem("business_name");
-    return token ? { token, business_id, business_name } : null;
-  });
-  const [page, setPage] = useState("dashboard");
+const [auth, setAuth] = useState({
+  token: "test",
+  business_id: 1,
+  business_name: "Demo",
+});
+const [page, setPage] = useState("dashboard");
   const [notif, setNotif] = useState({ msg: "", type: "success" });
 
   const notify = (msg, type = "success") => setNotif({ msg, type });
