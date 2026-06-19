@@ -8,19 +8,23 @@ const api = axios.create({
 });
 
 const THEME = {
-  bg: "#f6f4ef",
+  bg: "#f7f8fb",
   surface: "#ffffff",
-  surfaceSoft: "#f1eee7",
-  border: "#ded8cc",
-  text: "#20231f",
-  muted: "#74766f",
-  faint: "#9a9b93",
-  brand: "#24594d",
-  brandDark: "#173d35",
-  teal: "#2f7f75",
-  amber: "#c9812f",
-  red: "#c2413d",
-  shadow: "0 20px 48px rgba(41, 35, 26, 0.12)",
+  surfaceSoft: "#eef6f3",
+  border: "#dfe6ee",
+  text: "#17202a",
+  muted: "#667085",
+  faint: "#98a2b3",
+  brand: "#0f766e",
+  brandDark: "#103b3b",
+  teal: "#2563eb",
+  amber: "#d97706",
+  red: "#d14343",
+  accent: "#e85d4f",
+  ink: "#111827",
+  sidebar: "#101828",
+  sidebarSoft: "#182235",
+  shadow: "0 22px 54px rgba(16, 24, 40, 0.10)",
 };
 
 const brandMark = (
@@ -183,7 +187,8 @@ function AuthPage({ onLogin }) {
     <div
       style={{
         minHeight: "100vh",
-        background: THEME.bg,
+        background:
+          "linear-gradient(135deg, #f8fafc 0%, #eef6f3 46%, #fff7ed 100%)",
         display: "grid",
         gridTemplateColumns: "minmax(420px, 1fr) minmax(360px, 520px)",
         alignItems: "center",
@@ -539,18 +544,19 @@ export default function App() {
       <div
         style={{
           width: 252,
-          background: THEME.surface,
-          borderRight: `1px solid ${THEME.border}`,
+          background:
+            "linear-gradient(180deg, #101828 0%, #142236 58%, #103b3b 100%)",
+          borderRight: "1px solid rgba(255,255,255,0.08)",
           display: "flex",
           flexDirection: "column",
           padding: "22px 0",
-          boxShadow: "8px 0 28px rgba(35, 31, 24, 0.04)",
+          boxShadow: "12px 0 36px rgba(16, 24, 40, 0.12)",
         }}
       >
         <div
           style={{
             padding: "0 20px 24px",
-            borderBottom: `1px solid ${THEME.border}`,
+            borderBottom: "1px solid rgba(255,255,255,0.10)",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -558,10 +564,10 @@ export default function App() {
               style={{
                 width: 36,
                 height: 36,
-                background: THEME.surfaceSoft,
-                color: THEME.brand,
+                background: "rgba(255,255,255,0.10)",
+                color: "#fff",
                 borderRadius: 8,
-                border: `1px solid ${THEME.border}`,
+                border: "1px solid rgba(255,255,255,0.14)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -573,7 +579,7 @@ export default function App() {
             <div>
               <div
                 style={{
-                  color: THEME.text,
+                  color: "#fff",
                   fontSize: 14,
                   fontWeight: 700,
                 }}
@@ -583,7 +589,7 @@ export default function App() {
 
               <div
                 style={{
-                  color: THEME.brand,
+                  color: "rgba(255,255,255,0.62)",
                   fontSize: 11,
                   fontWeight: 600,
                 }}
@@ -610,16 +616,16 @@ export default function App() {
                 cursor: "pointer",
                 background:
                   page === m.id
-                    ? THEME.surfaceSoft
+                    ? "rgba(255,255,255,0.12)"
                     : "transparent",
-                color: page === m.id ? THEME.brandDark : THEME.muted,
+                color: page === m.id ? "#fff" : "rgba(255,255,255,0.62)",
                 fontSize: 13,
                 fontWeight: page === m.id ? 700 : 500,
                 textAlign: "left",
                 marginBottom: 2,
                 borderLeft:
                   page === m.id
-                    ? `2px solid ${THEME.brand}`
+                    ? `2px solid ${THEME.accent}`
                     : "2px solid transparent",
                 transition: "all .15s",
               }}
@@ -632,9 +638,9 @@ export default function App() {
                   display: "inline-flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  background: page === m.id ? THEME.surface : "transparent",
-                  border: page === m.id ? `1px solid ${THEME.border}` : "1px solid transparent",
-                  color: page === m.id ? THEME.brand : THEME.faint,
+                  background: page === m.id ? "#fff" : "rgba(255,255,255,0.08)",
+                  border: page === m.id ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(255,255,255,0.08)",
+                  color: page === m.id ? THEME.brand : "rgba(255,255,255,0.62)",
                   fontSize: 10,
                   fontWeight: 800,
                   flexShrink: 0,
@@ -647,16 +653,16 @@ export default function App() {
           ))}
         </nav>
 
-        <div style={{ padding: "16px 12px", borderTop: `1px solid ${THEME.border}` }}>
+        <div style={{ padding: "16px 12px", borderTop: "1px solid rgba(255,255,255,0.10)" }}>
           <button
             onClick={logout}
             style={{
               width: "100%",
               padding: "9px 12px",
               background: "transparent",
-              border: `1px solid ${THEME.border}`,
+              border: "1px solid rgba(255,255,255,0.14)",
               borderRadius: 8,
-              color: THEME.muted,
+              color: "rgba(255,255,255,0.72)",
               cursor: "pointer",
               fontSize: 13,
               fontFamily: "'DM Sans', sans-serif",
@@ -684,12 +690,22 @@ export default function App() {
 function PageHeader({ title, subtitle }) {
   return (
     <div style={{ padding: "34px 36px 0" }}>
+      <div
+        style={{
+          width: 44,
+          height: 4,
+          borderRadius: 99,
+          background: THEME.accent,
+          marginBottom: 14,
+        }}
+      />
       <h1
         style={{
           color: THEME.text,
-          fontSize: 25,
+          fontSize: 27,
           fontWeight: 800,
           margin: "0 0 4px",
+          letterSpacing: 0,
         }}
       >
         {title}
@@ -709,7 +725,7 @@ function Card({ children, style = {} }) {
         border: `1px solid ${THEME.border}`,
         borderRadius: 8,
         padding: 24,
-        boxShadow: "0 10px 30px rgba(35, 31, 24, 0.05)",
+        boxShadow: THEME.shadow,
         ...style,
       }}
     >
@@ -731,7 +747,11 @@ function Btn({
       disabled={disabled}
       style={{
         padding: small ? "7px 14px" : "10px 20px",
-        background: disabled ? THEME.faint : color,
+        background: disabled
+          ? THEME.faint
+          : color === THEME.brand
+          ? `linear-gradient(135deg, ${THEME.brand} 0%, ${THEME.teal} 100%)`
+          : color,
         color: "#fff",
         border: "none",
         borderRadius: 8,
@@ -739,6 +759,7 @@ function Btn({
         fontSize: small ? 12 : 13,
         fontWeight: 700,
         fontFamily: "'DM Sans', sans-serif",
+        boxShadow: disabled ? "none" : "0 10px 24px rgba(15, 118, 110, 0.20)",
       }}
     >
       {children}
@@ -844,16 +865,28 @@ function DashboardPage({ auth }) {
       >
         <Card
           style={{
-            background: THEME.brandDark,
+            background:
+              "linear-gradient(135deg, #103b3b 0%, #0f766e 58%, #2563eb 100%)",
             color: "#fff",
             minHeight: 230,
             display: "flex",
             flexDirection: "column",
             justifyContent: "space-between",
+            overflow: "hidden",
+            position: "relative",
           }}
         >
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background:
+                "linear-gradient(90deg, rgba(255,255,255,0.08), rgba(255,255,255,0))",
+              pointerEvents: "none",
+            }}
+          />
           <div>
-            <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 12, fontWeight: 700, marginBottom: 12 }}>
+            <div style={{ color: "rgba(255,255,255,0.72)", fontSize: 12, fontWeight: 700, marginBottom: 12 }}>
               {business ? `${business.name} / ${business.sector}` : "İşletme paneli"}
             </div>
             <h1 style={{ fontSize: 32, lineHeight: 1.12, margin: "0 0 12px", maxWidth: 620 }}>
@@ -864,9 +897,9 @@ function DashboardPage({ auth }) {
             </p>
           </div>
           <div style={{ display: "flex", gap: 10, marginTop: 24, flexWrap: "wrap" }}>
-            <span style={{ padding: "7px 10px", borderRadius: 8, background: "rgba(255,255,255,0.1)", fontSize: 12 }}>WhatsApp</span>
-            <span style={{ padding: "7px 10px", borderRadius: 8, background: "rgba(255,255,255,0.1)", fontSize: 12 }}>Telegram</span>
-            <span style={{ padding: "7px 10px", borderRadius: 8, background: "rgba(255,255,255,0.1)", fontSize: 12 }}>Talepler</span>
+            <span style={{ padding: "7px 10px", borderRadius: 8, background: "rgba(255,255,255,0.14)", fontSize: 12 }}>WhatsApp</span>
+            <span style={{ padding: "7px 10px", borderRadius: 8, background: "rgba(255,255,255,0.14)", fontSize: 12 }}>Telegram</span>
+            <span style={{ padding: "7px 10px", borderRadius: 8, background: "rgba(255,255,255,0.14)", fontSize: 12 }}>Talepler</span>
           </div>
         </Card>
 
@@ -879,7 +912,7 @@ function DashboardPage({ auth }) {
             backgroundSize: "cover",
             backgroundPosition: "center",
             border: `1px solid ${THEME.border}`,
-            boxShadow: "0 10px 30px rgba(35, 31, 24, 0.05)",
+            boxShadow: THEME.shadow,
           }}
         />
       </div>
@@ -1633,7 +1666,7 @@ function AIPage({ notify }) {
                       m.role === "user"
                         ? THEME.brand
                         : THEME.surfaceSoft,
-                    color: m.role === "assistant" ? "#fff" : THEME.text,
+                    color: m.role === "user" ? "#fff" : THEME.text,
                     fontSize: 13,
                     lineHeight: 1.5,
                     border:
@@ -1701,7 +1734,7 @@ function AIPage({ notify }) {
           <Card>
             <h3
               style={{
-                color: "#fff",
+                color: THEME.text,
                 fontFamily: "'Syne', sans-serif",
                 margin: "0 0 14px",
                 fontSize: 14,
